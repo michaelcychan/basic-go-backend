@@ -17,12 +17,13 @@ type Room struct {
 	Temp int
 }
 
+// there must NOT be any space between json: and the "keyName"
 type FullMonarchJson struct {
-	Name        string `json: name`
-	YearOfBirth int    `json: birth_year`
-	YearOfDeath int    `json: death_year`
-	ReignStart  int    `json: reign_start`
-	ReignEnd    int    `json: reign_end`
+	Name        string `json:"name"`
+	YearOfBirth int    `json:"birth_year"`
+	YearOfDeath *int   `json:"death_year"`
+	ReignStart  int    `json:"reign_start"`
+	ReignEnd    *int   `json:"reign_end"`
 }
 
 func goDotEnvVariable(key string) string {
@@ -43,9 +44,29 @@ func indexHandler(c *fiber.Ctx, rooms []Room, roomName string) string {
 	return "room not found"
 }
 
-func findMonarchHandler(c *fiber.Ctx, db *sql.DB, monarch string) []FullMonarchJson {
+func findMonarchHandler(c *fiber.Ctx, db *sql.DB, monarch string) FullMonarchJson {
 	query := fmt.Sprintf("SELECT * FROM monarch WHERE name = '%s';", monarch)
 	queryResult, err := db.Query(query)
+
+	if err != nil {
+		log.Fatalf("Query error: %s", err)
+		return FullMonarchJson{}
+	}
+
+	defer queryResult.Close()
+
+	var mon FullMonarchJson
+
+	for queryResult.Next() {
+
+		queryResult.Scan(&mon.Name, &mon.YearOfBirth, &mon.YearOfDeath, &mon.ReignStart, &mon.ReignEnd)
+
+	}
+	return mon
+}
+
+func FindAllMonarchHandler(c *fiber.Ctx, db *sql.DB) []FullMonarchJson {
+	queryResult, err := db.Query("SELECT * FROM monarch;")
 
 	if err != nil {
 		log.Fatalf("Query error: %s", err)
@@ -55,6 +76,7 @@ func findMonarchHandler(c *fiber.Ctx, db *sql.DB, monarch string) []FullMonarchJ
 	defer queryResult.Close()
 
 	var result []FullMonarchJson
+
 	for queryResult.Next() {
 		var mon FullMonarchJson
 		queryResult.Scan(&mon.Name, &mon.YearOfBirth, &mon.YearOfDeath, &mon.ReignStart, &mon.ReignEnd)
@@ -124,14 +146,23 @@ func main() {
 		return c.JSON("Welcome to the Kingdom")
 	})
 
+	kingdomPath.Get("/get-all-monarch", func(c *fiber.Ctx) error {
+		data := FindAllMonarchHandler(c, db)
+
+		return c.Status(200).JSON(data)
+	})
+
 	kingdomPath.Get("/get-monarch/:monarch", func(c *fiber.Ctx) error {
+
+		// turn %20 into a space
 		unescapedParam, errUnescape := url.PathUnescape(c.Params("monarch"))
 		if errUnescape != nil {
 			log.Fatalf("unescape error: %s", errUnescape)
 		}
+		// do actual query, result put into data, data is a type struct
 		data := findMonarchHandler(c, db, unescapedParam)
-		fmt.Printf("outside findMonarchHandler %v\n", data)
-		return c.JSON(data)
+
+		return c.Status(200).JSON(data)
 	})
 
 	app.Listen(":" + serverPort)
