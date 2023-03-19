@@ -5,11 +5,11 @@ import (
 	"fmt"
 	"log"
 	"net/url"
-	"os"
 
 	"github.com/gofiber/fiber/v2"
-	"github.com/joho/godotenv"
-	_ "github.com/lib/pq"
+
+	"github.com/michaelcychan/basic-go-backend/config"
+	"github.com/michaelcychan/basic-go-backend/database"
 )
 
 type Room struct {
@@ -24,15 +24,6 @@ type FullMonarchJson struct {
 	YearOfDeath *int   `json:"death_year"`
 	ReignStart  int    `json:"reign_start"`
 	ReignEnd    *int   `json:"reign_end"`
-}
-
-func goDotEnvVariable(key string) string {
-	err := godotenv.Load(".env")
-
-	if err != nil {
-		log.Fatalln("Error loading .env file")
-	}
-	return os.Getenv(key)
 }
 
 func indexHandler(c *fiber.Ctx, rooms []Room, roomName string) string {
@@ -87,20 +78,15 @@ func FindAllMonarchHandler(c *fiber.Ctx, db *sql.DB) []FullMonarchJson {
 
 func main() {
 
-	dbUser := goDotEnvVariable("DBUSER")
-	dbPassword := goDotEnvVariable("DBPASSWORD")
-	dbURL := goDotEnvVariable("DBURL")
-	dbPort := goDotEnvVariable("DBPORT")
-	connStr := fmt.Sprintf("postgresql://%s:%s@%s:%s/kingdom?sslmode=disable", dbUser, dbPassword, dbURL, dbPort)
+	db, dbErr := database.Connect()
 
-	db, dbErr := sql.Open("postgres", connStr)
 	if dbErr != nil {
-		log.Fatalf("Database error: %s", dbErr)
+		log.Fatalf("database error: %s", dbErr)
 	}
 
 	app := fiber.New()
 
-	serverPort := goDotEnvVariable("PORT")
+	serverPort := config.Config("PORT")
 	if serverPort == "" {
 		serverPort = "3001"
 	}
@@ -143,7 +129,7 @@ func main() {
 	})
 
 	kingdomPath.Get("/", func(c *fiber.Ctx) error {
-		return c.JSON("Welcome to the Kingdom")
+		return c.JSON(fiber.Map{"message": "Welcome to the Kingdom"})
 	})
 
 	kingdomPath.Get("/get-all-monarch", func(c *fiber.Ctx) error {
