@@ -24,4 +24,6 @@ func SetupRouter(app *fiber.App) {
 	kingdomPath.Get("/get-all-monarch", handler.FindAllMonarchHandler)
 
 	kingdomPath.Get("/get-monarch/:monarch", handler.FindMonarchHandler)
+
+	kingdomPath.Get("/get-longest-reigning-monarch", handler.FindLongestReignMonarch)
 }
